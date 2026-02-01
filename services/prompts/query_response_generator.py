@@ -930,6 +930,7 @@ DQ_DDMA_QUERY_GENERATOR_PROMPT=f'''
   FROM {settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_claim;
   -This step helps to identify the true encodings in the database (e.g., 'DENTIST', 'GENERAL DENTISTRY', or a code).
   -Ignore NULL values in key code/name fields (like gender_code, state_code, primary_specialty_name) unless explicitly requested to include them.
+  -When fetching or selecting tooth codes, pick 70% of the semantic meaning to get the appropriate records.
 
   ***Always STRICTLY Follow** Below SQL Query to get latest year (DQ-DDMA claims)**
   - If the user explicitly specifies a year, use that exact year.

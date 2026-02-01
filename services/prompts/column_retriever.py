@@ -494,12 +494,14 @@ DQ_DDMA_COLUMN_RETRIEVER_PROMPT=f"""
 
   3rd Fetch Tooth Codes (CRITICAL for DQ-DDMA) (IF Applicable)**
       - If the user asks about specific dental concepts (e.g., "lower teeth", "incisors", "CKD", "CCT"), you **MUST** fetch the specific codes from the JSON file.
+      - When fetching or selecting tooth codes, pick 70% of the semantic meaning to get the appropriate records.
       - **Action:** `column_metadata_extractor`
       - **Action Input:** `json`
         {{
           "query": "<rephrased query>",
           "datasource": "DQ-DDMA",
           "json": true,
+          "is_tooth_code": true
         }}
 
   Append tool results
@@ -562,6 +564,6 @@ DQ_DDMA_COLUMN_RETRIEVER_PROMPT=f"""
       FROM {settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_claim
 
   STRICTLY INSTRUCT DOWNSTREAM LLM
-    - Always use `member_id` to join the claim, encounter, and enrollment tables.
-    - **For visits/encounters:** MUST join `vw_sem_dq_ddma_dental_encounter` AND `vw_sem_dq_ddma_dental_claim` on `member_id`, filtering BOTH `encounter_date` AND `service_date` for the target year.
+    -Always use member_id to join the vw_sem_dq_ddma_dental_claim, vw_sem_dq_ddma_dental_encounter, and vw_sem_dq_ddma_dental_enrollment tables.
+    -For visit-level logic, always join service_date from the claims table 'vw_sem_dq_ddma_dental_claim' with encounter_date from the encounters table 'vw_sem_dq_ddma_dental_encounter'.
 """

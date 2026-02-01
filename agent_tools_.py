@@ -187,7 +187,7 @@ def column_metadata_extractor(
             return formatted_context
 
         if 'json' in reqbody:
-            if reqbody['datasource'].lower() in ['dqddma', 'dq-ddma']:
+            if reqbody.get('is_tooth_codes', False):
                 return tooth_codes
             return {key: medical_codes[key] for key in reqbody['json_keys'] if key in medical_codes}
 
