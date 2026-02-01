@@ -2,6 +2,7 @@
 System Instructions
 SQL Query Generator
 '''
+
 from config import settings
 
 QUERY_GENERATOR_PROMPT="""
@@ -1144,6 +1145,6 @@ DQ_DDMA_QUERY_GENERATOR_PROMPT=f'''
       FROM {settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_enrollment
       WHERE enrollment_effective_date <= '2023-12-31' -- Correct 'yyyy-mm-dd' format
         AND enrollment_termination_date >= '2023-01-01' -- Correct 'yyyy-mm-dd' format
-      ```
+  Hi    ```
   When the question says per member, PMPY ( Per member per year), PMPM (per member per month), or average, always treat it as the average per person, not a total. Count each member only once in the group. For each year, take the total cost or visits and divide by the number of people in that group.
 '''
