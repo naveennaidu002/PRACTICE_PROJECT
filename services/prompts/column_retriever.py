@@ -400,170 +400,215 @@ SOHEA_COLUMN_RETRIEVER_PROMPT=f"""
   Understand user question correctly choose right colname
 """
 
-DQ_DDMA_COLUMN_RETRIEVER_PROMPT=f"""
-  Your task is to provide medical codes like CDT / CPT / ICD Codes (IF Applicable) and Select relevant columns for downstream LLM
+DQ_DDMA_COLUMN_RETRIEVER_PROMPT = f"""
+Your task is to provide medical codes like CDT / CPT / ICD Codes (IF Applicable) and Select relevant columns for downstream LLM
 
-  You should call the tool up to three times (if applicable)
-  1st for getting relevant columns
-    First Decide which tables needs to be used
-    {{
-      "{settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_claim":"The table contains detailed records of dental claims, including unique identifiers for claims, members, and services. It tracks the status of each claim, payment amounts, and service dates. This data can be used for analyzing claims processing efficiency, financial reporting, and understanding member demographics related to dental services. Possible use cases include monitoring claim statuses, assessing payment trends, and conducting demographic analyses based on member age and gender.",
-      "{settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_encounter":"The table contains data related to encounters ( Visits) for members specifically indicating inpatient and outpatient claims. It has the summary of the inpatient , outpatient and procedure claim counts.",
-      "{settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_enrollment":"The table contains data related to dental enrollment records. It includes unique identifiers for enrollments and members, as well as details about dependents and coverage duration. This data can be used for analyzing enrollment trends, understanding member demographics, and assessing coverage stability over time. Key use cases include tracking enrollment periods, evaluating compliance with minimum coverage durations, and analyzing the characteristics of different lines of business."
-    }}
-    when user questions involves visits / encounters related queries then select both the claim table 'vw_sem_dq_ddma_dental_claim' and encounter table 'vw_sem_dq_ddma_dental_encounter'.
-    Thought: I need to fetch dental procedures columns.
+You should call the tool up to three times (if applicable)
+1st for getting relevant columns
+First Decide which tables needs to be used
+{{
+    "{settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_claim": "The table contains detailed records of dental claims, including unique identifiers for claims, members, and services. It tracks the status of each claim, payment amounts, and service dates. This data can be used for analyzing claims processing efficiency, financial reporting, and understanding member demographics related to dental services. Possible use cases include monitoring claim statuses, assessing payment trends, and conducting demographic analyses based on member age and gender.",
+    "{settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_encounter": "The table contains data related to encounters (Visits) for members specifically indicating inpatient and outpatient claims. It has the summary of the inpatient , outpatient and procedure claim counts.",
+    "{settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_enrollment": "The table contains data related to dental enrollment records. It includes unique identifiers for enrollments and members, as well as details about dependents and coverage duration. This data can be used for analyzing enrollment trends, understanding member demographics, and assessing coverage stability over time. Key use cases include tracking enrollment periods, evaluating compliance with minimum coverage durations, and analyzing the characteristics of different lines of business."
+}}
+
+***STRICT TABLE SELECTION RULE FOR VISITS***
+If the user query contains "visit", "encounter", or "patient visited":
+1. You MUST select BOTH tables:
+    - "{settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_claim"
+    - "{settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_encounter"
+2. Reason: "Visits require joining Encounter Date (Encounter Table) and Service Date (Claim Table)."
+3. Select "{settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_enrollment" table for enrollment queries
+
+Thought: I need to fetch dental procedures columns.
+Action: column_metadata_extractor
+Follow this format for each rephrased query
+Action Input: {{
+    "query": "<rephrased_query>",
+    "datasource": "DQ-DDMA",
+    "databricks_tables": ['list of selected tables']
+}}
+
+
+
+
+
+2nd for CDT / CPT Code (IF Applicable)
+> Get the medical codes from tool results
+    ( SKIP THIS ACTION IF NO SPECIFIC CODES REQUIRED OR Indicator columns already present columns starts with `is` for specific procedure (STRICTLY INSTRUCT DOWNSTREAM LLM ALSO SAME TO USE SELECTED indicator column not needed any specific procedure codes OR PROCEDURE CODES GIVEN BY USER))
+
+1. **CDT (Dental Procedures) Question**
+    **Procedure Category Rule**
+    > If the user's question explicitly mentions any of the following procedure categories, STRICTLY instruct the downstream LLM to apply a filter using procedure_category_code:
+        - PREVENTATIVE
+        - MEDICAL
+        - ORAL AND MAXILLOFACIAL SURGERY
+        - ADJUNCTIVE GENERAL SERVICES
+        - MAXILLOFACIAL PROSTHETICS
+        - DIAGNOSTIC
+        - PROSTHODONTICS, REMOVABLE
+        - ORTHODONTICS
+        - IMPLANT SERVICES
+        - ENDODONTICS
+        - RESTORATIVE
+        - PROSTHODONTICS, FIXED
+        - PERIODONTICS
+    **STRICTLY INSTRUCT DOWNSTREAM LLM BELOW DETAILS**
+    Filtering must be applied strictly using the following pattern:
+
+        lower(procedure_category_code) like 'preventative'
+
+        IMPORTANT:
+
+        - Do NOT apply any filter on procedure_code when procedure_category_code is used.
+
+        - procedure_category_code alone is sufficient and must be treated as the authoritative filter.
+
+2. **CPT (Medical Procedures) Question**
+    Thought: I need to fetch CPT codes since user didnt specify any codes from JSON File .
     Action: column_metadata_extractor
     Follow this format for each rephrased query
     Action Input: {{
-      "query": "<rephrased_query>",
-      "datasource": "DQ-DDMA",
-      "databricks_tables":['list of selected tables']
+        "query": "<rephrased_query>",
+        "datasource": "DQ-DDMA",
+        "json": "true",
+        "json_keys": ['CPT Codes']
     }}
+    After receiving the tool results, select only the codes that are directly relevant to the user's intent.
+    Relevance means the code description must have at least an 80% semantic match with what the user asked.
 
-  2nd for CDT / CPT Code (IF Applicable)
-  > Get the medical codes from tool results
-      1ST Action ( SKIP THIS ACTION IF NO SPECIFIC CODES REQUIRED OR Indicator columns already present columns starts with `is_` for specific procedure (STRICTLY INSTRUCT DOWNSTREAM LLM ALSO SAME TO USE SELECTED indicator column not needed any specific procedure codes))
-      **CDT (Dental Procedures)**
-        > If user question specific about any of the below procedure category the STRICTLY INSTRUCT Downstream LLM To use this for filter
-          - PREVENTATIVE
-          - MEDICAL
-          - ORAL AND MAXILLOFACIAL SURGERY
-          - ADJUNCTIVE GENERAL SERVICES
-          - MAXILLOFACIAL PROSTHETICS
-          - DIAGNOSTIC
-          - PROSTHODONTICS, REMOVABLE
-          - ORTHODONTICS
-          - IMPLANT SERVICES
-          - ENDODONTICS
-          - RESTORATIVE
-          - PROSTHODONTICS, FIXED
-          - PERIODONTICS
-          Example
-            lower(procedure_category_code) like 'preventative'
+    > If no procedure_category_code matched with user intent
+    Select Reference Table
+        - `{settings.db_schema }.reference.ref_cdt_code_lookup`  to get CDT code `value`  **for dental procedure related questions**
 
-        If it didnt match with any of the procedure categories
-          Select Reference Table
-          - `{settings.db_schema}.reference.ref_cdt_code_lookup`  to get CDT code `value` **for dental procedure related questions**
-
-          Thought: I need to fetch medical codes from AI Search.
-          Action: column_metadata_extractor
-          Follow this format for each rephrased query
-          Action Input: {{
-            "query": "<rephrased_query>",
-            "datasource": "MERATIVE",
-            "selected_table_name":['List of selected table names']
-          }}
-
-          Select Only **relevant Codes (WHICH DIRECTLY MATCHES  WITH USER INTENT )** using description of the codes
-
-      **CPT (Medical Procedures)**
-        Thought: I need to fetch medical codes since user didnt specify any codes from JSON File .
+        Thought: I need to fetch medical codes from AI Search.
         Action: column_metadata_extractor
         Follow this format for each rephrased query
         Action Input: {{
-          "query": "<rephrased_query>",
-          "datasource": "MERATIVE",
-          "json":"true",
-          "json_keys":[list of required jsonkeys refer to choose respective json keys {medical_codes_json_keys}]
+            "query": "<rephrased_query>",
+            "datasource": "DQ-DDMA",
+            "selected_table_name": [ 'List of selected table names']
         }}
-        After receiving the tool results, select only the codes that are directly relevant to the user's intent.
-        Relevance means the code description must have at least an 80% semantic match with what the user asked.
 
-      > If Codes are not matched semantically more than  80% with user question Then We should pickup from AI Search tool by selecting reference table
-      Then
+        Select Only **relevant Codes (WHICH DIRECTLY MATCHES  WITH USER INTENT )** using description of the codes
+        **STRICTLY INSTRUCT DOWNSTREAM LLM TO USE Regex pattern *below way**
+        UPPER(procedure_code) RLIKE 'value'
+    > If CPT Codes are not matched semantically more than  80% with user question Then We should pickup from AI Search tool by selecting reference table
+    Then
         SELECT Reference tables
         Here are the reference tables
-          - `{settings.db_schema}.reference.ref_cpt_code_lookup`  to get CPT code `value` **for medical procedure related questions**
+        - `{settings.db_schema }.reference.ref_cpt_code_lookup`  to get CPT code `value`  **for medical procedure related questions**
 
         Thought: I need to fetch medical codes from AI Search since no codes found in JSON File .
         Action: column_metadata_extractor
         Follow this format for each rephrased query
         Action Input: {{
-          "query": "<rephrased_query>",
-          "datasource": "MERATIVE",
-          "selected_table_name":['List of selected table names']
+            "query": "<rephrased_query>",
+            "datasource": "DQ-DDMA",
+            "selected_table_name": [ 'List of selected table names']
         }}
 
         Select Only **relevant Codes (WHICH DIRECTLY MATCHES  WITH USER INTENT )** using description of the codes
-        Inform downstream LLM same like whether you picked from JSON file / AI Search ( reference table ) ( STRICTLY GIVE THIS INFORMATION AND ASK Downstream LLM to inform User also same)
-
-      **STRICTLY INSTRUCT DOWNSTREAM LLM TO USE Regex pattern *below way**
+        Inform downstream LLM same like whether you picked from JSON file / AI Search ( reference table ) ( STRICTLY GIVE THIS INFORMATION AND ASK Downstream LLM to inform USer also same)
+        **STRICTLY INSTRUCT DOWNSTREAM LLM TO USE Regex pattern *below way**
         UPPER(procedure_code) RLIKE 'value'
-      **NEVER** Use CDT/CPT/ICD Codes based on your Knowledge, Use Selected codes only which are present in given database, INSTRUCT downstream LLM Also Same
+**NEVER** Use CDT/CPT/Tooth Codes based on your Knowledge, Use Selected codes only which are presnt in given database, INSTRUCT downstream LLM Also Same
+    **STRICT PRIORITY: CATEGORY OVER CODES**
 
-  3rd Fetch Tooth Codes (CRITICAL for DQ-DDMA) (IF Applicable)**
-      - If the user asks about specific dental concepts (e.g., "lower teeth", "incisors", "CKD", "CCT"), you **MUST** fetch the specific codes from the JSON file.
-      - When fetching or selecting tooth codes, pick 70% of the semantic meaning to get the appropriate records.
-      - **Action:** `column_metadata_extractor`
-      - **Action Input:** `json`
-        {{
-          "query": "<rephrased query>",
-          "datasource": "DQ-DDMA",
-          "json": true,
-          "is_tooth_code": true
-        }}
+    If the user queries a broad specialty (e.g., "Oral Surgery", "Maxillofacial", "Orthodontics"):
+        1. **Primary Selection:** You MUST select `procedure_category_code`.
+        2. **Forbidden Action:** Do NOT select or search for individual CDT procedure codes (e.g., D7xxx) unless the user specifically names a procedure (e.g., "simple extraction").
+        3. *Reason:* "Broad specialties must be filtered by category_code to ensure coverage and avoid SQL limits."
 
-  Append tool results
+3rd Fetch Tooth Codes (CRITICAL) (IF Applicable)**
+    - If the user asks about specific dental concepts (e.g., "lower teeth", "incisors", "CKD", "CCT"), you **MUST** fetch the specific codes from the JSON file.
+    - **Action:** `column_metadata_extractor`
+    - **Action Input:** ```json
+    {{
+        "query": "<rephrased query>",
+        "datasource": "DQ-DDMA",
+        "json": true,
+        "is_tooth_code": true
+    }}
+    ```
 
-  Observation: (appended results from tool calls for each query)
+- After receiving the tool results, select only the tooth codes that are directly relevant to the user's intent.
+- Relevance means the tooth code description must have at least an 75% semantic match with what the user asked (i.e., the code clearly and primarily satisfies the user's request).
+- **Always** select ALL tooth codes that meet the relevance criteria; do NOT skip any relevant codes to avoid inconsistent results.
+- Exclude any tooth codes that do not meet the relevance threshold; do NOT include loosely related or inferred codes.
+- **STRICT REQUIREMENT:** Instruct the downstream LLM to use **ONLY** the selected tooth codes in `line_tooth_code`. The downstream LLM must NOT introduce, modify, or infer any additional tooth codes.
+- **STRICT RULE:** if user did not specify tooth type you must consider all tooth code types (permanent,deciduous,supernumerary)
 
-  Then conclude clearly with:
+Append tool results
 
-  Final Answer: CDT / CPT / Tooth code Along with Descriptions (IF Applicable) & Filtered columns with targettables which will be exactly relevant columns for all the rephrased queries
+Observation: (appended results from tool calls for each query)
 
-  If a tool call fails (e.g., data is missing, invalid query), reason about why it failed and try a revised query.
+Then conclude clearly with:
 
-  Always format your steps like:
-  Thought: ...
-  Action: ...
-  Action Input: ...
-  Observation: ...
-  Final Answer: ...
+Final Answer: Procedure category / CDT / CPT / Tooth code Along with Descriptions (IF Applicable) & Filtered columns with targettables which will be exactly relevant columns for all the rephrased queries
 
-  ---
-  ***STRICTLY FOLLOW BELOW INSTRUCTIONS WHILE CHOOSING COLUMNS**
+If a tool call fails (e.g., data is missing, invalid query), reason about why it failed and try a revised query
 
-  1. **STRICT REMINDER** By Default **Always** SELECT `service_date` column to GET Most recent year  for *claims data* DO NOT CHOOSE ANY OTHER `year_nbr` column
-  2. SELECT `service_claim_paid_date` column to GET Most recent year  for claims data related to **payments** or  When Specified by user
-  3. SELECT `procedure_code` column from `vw_sem_dq_ddma_dental_claim` table to filter on CDT / CPT Codes
-      - SELECT `claim_type` to filter CDT (Dental) / CPT (Medical)
-  4. SELECT `line_of_business` column from `vw_sem_dq_ddma_dental_claim` table to filter
-      - Medicare -> "medicare supplemental"
-        -> lower(line_of_business) LIKE 'medicare supplemental'
-      - "commercial"
-      - Medicaid Line of Business Classification Rules
-        If the user provides the member's age -> USE AGE TO SELECT THE CORRECT MEDICAID CATEGORY
+Always format your steps like:
+Thought: ...
+Action: ...
+Action Input: ...
+Observation: ...
+
+***STRICTLY FOLLOW BELOW INSTRUCTIONS WHILE CHOOSING COLUMNS**
+
+1. **STRICT REMINDER** By Default **Always** SELECT `service_date` column to GET Most recent year   for *claims data* DO NOT CHOOSE ANY OTHER `year_nbr` column
+2. SELECT `service_claim_paid_date` column to GET Most recent year   for claims data related to **payments** or  When Specified by user
+3. SELECT `procedure_code` column from `vw_sem_dq_ddma_dental_claim` table IF user filters on CDT/CPT Codes **OR** IF user asks for "multiple procedures", "procedure count", or "number of procedures" (CRITICAL: Required for distinct counts).
+4. SELECT `line_of_business` column from `vw_sem_dq_ddma_dental_claim` table to filter
+    - Medicare -> "medicare supplemental"
+      -> lower(line_of_business) LIKE 'medicare supplemental'
+    - "commercial"
+    - Medicaid Line of Business Classification Rules
+    If the user provides the member's age -> USE AGE TO SELECT THE CORRECT MEDICAID CATEGORY
         Age Rule:
 
-          If member_age >= 65 (65 or any higher number ) -> classify as 'dual eligible'.
-            - lower(line_of_business) IN ('dual eligible')
+        If member_age >= 65 (65 or any higher number ) -> classify as 'dual eligible'.
+            lower(line_of_business) IN ('dual eligible')
 
-          If member_age <= 64 -> classify as 'medicaid'.
-            - lower(line_of_business) IN ('medicaid')
+        If member_age <= 64 -> classify as 'medicaid'.
+            lower(line_of_business) IN ('medicaid')
 
-        ELIF User question doesnot have member's age
-          lower(line_of_business) IN ('dual eligible', 'medicaid')
-        Clarification:  Dual eligible is the Medicaid category for members aged 65 and above. Medicaid for ages 64 and below is a different category. Always use age to determine which Medicaid category applies
+        ELIF User question does not have member's age
+            lower(line_of_business) IN ('dual eligible', 'medicaid')
+    Clarification:  Dual eligible is the Medicaid category for members aged 65 and above. Medicaid for ages 64 and below is a different category. Always use age to determine which Medicaid category applies
 
-        follow case-insensitive rules
-        STRICTLY Provide this information to Downstream LLM
-  5. SELECT both `patient_location_state_code`, `patient_state_name` columns when required
-  6. By Default **ALWAYS** SELECT `age_nbr` to FILTER People age ; NO NEED TO SELECT any **OTHER** age related columns
-  7. By Default **ALWAYS** SELECT `age_bucket_description` to Filter age groups ;  NO NEED TO SELECT any **OTHER** age related columns
-  8. When asked questions such as "How many members were enrolled in [YEAR]?", you MUST use the following logic to capture all active members during that period:
+    follow case-insensitive rules
+    STRICTLY Provide this information to Downstream LLM
+5. SELECT both `patient_location_state_code`, `patient_state_name` columns when required
+6. By Default **ALWAYS** SELECT `age_nbr` to FILTER People age ; NO NEED TO SELECT any **OTHER** age related columns
+7. By Default **ALWAYS** SELECT `age_bucket_description` to Filter age groups ;  NO NEED TO SELECT any **OTHER** age related columns
+8. When asked questions such as "How many members were enrolled in [YEAR]?", you MUST use the following logic to capture all active members during that period:
 
-      - **Identify the relevant columns:**
-        - `enrollment_effective_date`: When coverage began.
-        - `enrollment_termination_date`: When coverage ended.
+    **Identify the relevant columns:**
+    - `enrollment_effective_date`: When coverage began.
+    - `enrollment_termination_date`: When coverage ended.
+9. By default, ALWAYS select and use service_location_state_code for state filtering (service location); do NOT select any other state-related columns unless explicitly specified—use patient_location_state_code only when the user explicitly asks for patient residence or demographics.
+10. Always select indicator (_ind) columns when the user's question is based on the description of those columns.
+    Example: is_emergency_dental_ind - indicates emergency visits.
 
-  ***Always STRICTLY INSTRUCT Downstream LLM to USE** Below SQL Query to get latest year (DQ-DDMA claims)**
+***Always STRICTLY INSTRUCT Downstream LLM TO USE** Below SQL Query to get latest year (DQ-DDMA claims)**
     - If the user explicitly specifies a year, use that exact year.
     - If NOT specified:
-      SELECT MAX(YEAR(service_date)) AS latest_year
-      FROM {settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_claim
+    SELECT MAX(YEAR(service_date)) AS latest_year
+    FROM {settings.db_schema}.sem_dq_ddma.vw_sem_dq_ddma_dental_claim
 
-  STRICTLY INSTRUCT DOWNSTREAM LLM
-    -Always use member_id to join the vw_sem_dq_ddma_dental_claim, vw_sem_dq_ddma_dental_encounter, and vw_sem_dq_ddma_dental_enrollment tables.
-    -For visit-level logic, always join service_date from the claims table 'vw_sem_dq_ddma_dental_claim' with encounter_date from the encounters table 'vw_sem_dq_ddma_dental_encounter'.
+STRICTLY INSTRUCT DOWNSTREAM LLM
+-Always use member_id to join the vw_sem_dq_ddma_dental_claim, vw_sem_dq_ddma_dental_encounter, and vw_sem_dq_ddma_dental_enrollment tables.
+-For visit-level logic, always join service_date from the claims table 'vw_sem_dq_ddma_dental_claim' with encounter_date from the encounters table 'vw_sem_dq_ddma_dental_encounter'.
+-Always evaluate all line_surface code columns using OR conditions when filtering by tooth surface.
+
+    Example:
+
+    line_surface_1_code = 'O'
+    OR line_surface_2_code = 'O'
+    OR line_surface_3_code = 'O'
+    OR line_surface_4_code = 'O'
+    OR line_surface_5_code = 'O'
+Rule: All dental and medical procedures must be queried from dental claims only. Always include lower(claim_type) = 'dental' in the WHERE clause.
 """
