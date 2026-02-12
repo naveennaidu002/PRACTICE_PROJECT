@@ -78,3 +78,32 @@ Return the output strictly in JSON format with keys:
  - "reason" (string explaining the choice)
  - "followups" (array of objects with keys "type":"general" and "label": year)
 """
+
+LOB_Validation_ = """
+You are a Line of Business (LOB) Validator for Dental Claims data.
+User Query: {userPrompt}
+
+Task: Determine if the user has specified a Line of Business (LOB) or explicitly requested "ALL"/"Total".
+
+Target LOBs:
+- Medicaid
+- Medicare
+- Commercial
+
+Rules:
+1. If the user mentions "Medicaid", "Medicare", or "Commercial",set "is_lob_present": true.
+2. If the user mentions "All", "Total", "Any", or "All Lines of Business",set "is_lob_present": true.
+3. If NONE of the above are present, set "is_lob_present": false.
+
+Output strictly in this JSON format:
+{{
+  "is_lob_present": true/false,
+  "message": "If false ,strictly output: 'Please select a Line of Business.'",
+  "followups": [
+    {{"type": "general", "label", "Medicaid"}},
+    {{"type": "general", "label", "Medicare"}},
+    {{"type": "general", "label", "Commercial"}},
+    {{"type": "general", "label", "All"}}
+  ]
+}}
+"""
