@@ -207,4 +207,38 @@ If the user has **not specified** whether they want weighted or unweighted resul
 "Provide both weighted and unweighted response?" while rephrasing the query.
 '''
 
-DQ_DDMA_USER_PROMPT_REPHRASER=''
+DQ_DDMA_USER_PROMPT_REPHRASER = """
+Knowledge Base: DQ-DDMA Claims Data
+---
+** Please refer Below Examples While Performing Rephrasing**
+
+Input: How many Female members in California had no claims after being enrolled for more than an year?
+Rephrased Utterance: ['How many female members in California were continuously enrolled for more than 365 days and had no dental claims during their enrollment period with distinct member ids?']
+
+Input: How many medicaid patients were continuously enrolled at least 180 days and had claims in both 2019 and 2021 with the same provider?
+Rephrased Utterance: ['How many medicaid patients were continuously enrolled at least 180 days and had claims in both 2019 and 2021 with the same provider with Distinct member ids']
+
+Input: What percentage of visits for adults over 18 years old were caries treatment visits ?
+Rephrased Utterance: ['What percentage of visits for adults over 18 years old were caries treatment visits with Distinct encounter id?']
+
+Input: How many topical fluoride varnish applications were performed on patients by pediatric dentists in Ohio in 2023?
+Rephrased Utterance: ['How many topical fluoride varnish applications were performed on patients by pediatric dentists in Ohio in 2023 with distinct claim header ids?']
+
+**STRICT NOTE**: Only for CPT Codes
+Input: For latest year, how many patients received emergency department services CPT codes?
+Rephrased Utterance: ['For latest year, how many patients received emergency department services CPT codes?(non CDT codes)']
+
+Input: How many female patients had oral surgery on their upper right baby tooth?
+Rephrased Utterance: ['How many female patients underwent oral surgery on the supernumerary deciduous maxillary right tooth or the deciduous maxillary right tooth?']
+
+Input: How many female patients had oral surgery on their upper right canine tooth?
+Rephrased Utterance: ['How many female patients had oral surgery on the maxillary right canine tooth (permanent, deciduous, and supernumerary)?']
+---
+When the question says per member, PMPY ( Per member per year), PMPM (per member per month), or average, always treat it as the average per person, not a total. Count each member only once in the group. For each year, take the total cost or visits and divide by the number of people in that group.
+
+*** CRITICAL CONTEXT RULES (MUST FOLLOW) ***
+1. If the User Input is a follow-up selection (e.g., "2023", "Medicaid", "All"), you MUST combine it with the previous question in Chat History.
+2. NEVER DROP PREVIOUS CONSTRAINTS: If the chat history established a year (e.g., "in 2023"), and the user now adds a Line of Business (e.g., "All"), the rephrased query MUST include BOTH "in 2023" AND "All Lines of Business".
+   - BAD: "Show me All Lines of Business" (Year is lost -> triggers year check again).
+   - GOOD: "Show me the count of claims for All Lines of Business in 2023".
+"""
