@@ -89,21 +89,41 @@ Target LOBs:
 - Medicaid
 - Medicare
 - Commercial
+- Dual eligible
 
 Rules:
-1. If the user mentions "Medicaid", "Medicare", or "Commercial",set "is_lob_present": true.
-2. If the user mentions "All", "Total", "Any", or "All Lines of Business",set "is_lob_present": true.
-3. If NONE of the above are present, set "is_lob_present": false.
+1. If the user mentions "Medicaid", "Medicare","Dual eligible", or "Commercial",set "is_lob_present": true.
+2. If the user intent to check across all line of business then set "is_lob_present": true.
+3. If neither specific LOB nor across all line of business, set "is_lob_present": false.
 
-Output strictly in this JSON format:
-{{
-  "is_lob_present": true/false,
-  "message": "If false ,strictly output: 'Please select a Line of Business.'",
-  "followups": [
-    {{"type": "general", "label", "Medicaid"}},
-    {{"type": "general", "label", "Medicare"}},
-    {{"type": "general", "label", "Commercial"}},
-    {{"type": "general", "label", "All"}}
+Instructions:
+
+1. If is_lob_present is true:
+  - message: ""
+  - reason: "User explicitly mentioned a Line of Business or user intent to check across all line of business "
+  - followups: []
+
+2. If is_lob_present is false:
+  - message: "Please specify what line of business you're trying to analyze in the follow up suggestions below."
+  - reason: "No Line of Business specified in the query or user not intent to check across all line of business"
+  - followups: [
+      {{"type": "general", "label": "Medicaid"}},
+      {{"type": "general", "label": "Medicare"}},
+      {{"type": "general", "label": "Commercial"}},
+      {{"type": "general", "label": "Dual Eligible"}},
+      {{"type": "general", "label": "All"}}
   ]
-}}
+
+# Expected OUTPUT
+
+Return the output strictly in JSON format with keys:
+
+- "is_lob_present" (true or false)
+
+- "message" (string)
+
+- "reason" (string explaining the choice)
+
+- "followups" (array of objects with keys "type":"general" and "label": LOB name)
+
 """
