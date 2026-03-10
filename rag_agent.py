@@ -40,7 +40,7 @@ class Chart(BaseModel):
 
 class FinalResponseModel(BaseModel):
     sqlCode: str = Field(description="SQL Queries used to generate the answer ( SEND Empty string if no Queries found)")
-    visualization: Optional[Chart] = Field(default=None,description=" Data Visualizaition Choose best Chart among bar / pie / line  Follow  **CHARTING INSTRUCTIONS RULES**")
+    visualization: Optional[Chart] = Field(default=None,description=" Data Visualization Choose best Chart among bar / pie / line  Follow  **CHARTING INSTRUCTIONS RULES**")
     followups: List[Followup] = Field(default=[],description="Array of followup questions as json objects each containing type and label, Follow  **Followup Suggestion RULES**")
     viewVisualization: bool = Field(default=False, description="Set to True if the user question involves visualization example : show bar chart or pie chart ..; otherwise False.")
 class FinalResponseModel_Research_Explorer(BaseModel):
@@ -49,10 +49,7 @@ class FinalResponseModel_Research_Explorer(BaseModel):
 parser = PydanticOutputParser(pydantic_object=FinalResponseModel)
 parser_research_explorer = PydanticOutputParser(pydantic_object=FinalResponseModel_Research_Explorer)
 
-...
-
-Chat Agent Main Class to generate final response
-...
+# Chat Agent Main Class to generate final response
 class Main():
     def __init__(self,sessionId,input_text,datasource,userId):
         self.sessionId=sessionId
@@ -125,7 +122,7 @@ class Main():
             return response.content
         except Exception as e:
             print("Exception during Azure OpenAI call:\n%s", traceback.format_exc())
-            log_str = f"Session ID {self.sessionId} Error occured while invoking LLM  {str(e)}"
+            log_str = f"Session ID {self.sessionId} Error occurred while invoking LLM  {str(e)}"
             print(log_str)
             logger.error(log_str)
     def calculate_cost(self):
@@ -385,7 +382,6 @@ class Main():
                      research_explorer_agent = self.agent_executor(summary_agent,meta_data_tools_)
                      
                      with get_openai_callback() as cb:
-                     with get_openai_callback() as cb:
                         research_explorer_agent_response = research_explorer_agent.stream({"input": f'Original Question: {self.userPrompt} Rephrased Query: {self.rephrased_query}'})
                         summary_output,research_explorer_agent_steps = self.agent_thoughts(research_explorer_agent_response)
                         self.total_input_tokens += cb.prompt_tokens
@@ -397,11 +393,11 @@ class Main():
                         self.streamed_response=summary_output
                         agent_steps_.append(research_explorer_agent_steps)
                     
-                    prompt_input_structured_response_generator = research_structured_response_generator_prompt.format(
-                        AGENT_OUTPUTS=agent_steps_,
-                        response_format_instructions=parser_research_explorer.get_format_instructions(),
-                        decision_response = decision_response
-                        )
+                     prompt_input_structured_response_generator = research_structured_response_generator_prompt.format(
+                         AGENT_OUTPUTS=agent_steps_,
+                         response_format_instructions=parser_research_explorer.get_format_instructions(),
+                         decision_response = decision_response
+                         )
                 else:
                     
                     '''
@@ -419,7 +415,7 @@ class Main():
                     
                     self.rephrased_query=self.invoke_llm(prompt_input_rephraser,stage_name='User Prompt rephraser')
 
-                    log_str = f"Session Id {self.sessionId} Datasource {self.dataSource}Rephrased user prompt:  {self.rephrased_query}"
+                    log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} Rephrased user prompt:  {self.rephrased_query}"
                     print(log_str)
                     logger.info(log_str)
 
@@ -456,11 +452,11 @@ class Main():
                     if self.dataSource.lower() == 'sohea':
                         '''Single/multi year Classifier'''
                         sohea_year_classifier_prompt = sohea_year_classifier_prompt_template.format(userPrompt=self.rephrased_query)
-                        sohea_year_classifier_response = json.loads(self.invoke_llm(sohea_year_classifier_prompt,stage_name='Sohea Donominator Classifier'))
+                        sohea_year_classifier_response = json.loads(self.invoke_llm(sohea_year_classifier_prompt,stage_name='Sohea Denominator Classifier'))
 
                         '''Denominator Classifier'''
                         sohea_denominator_classifier_prompt = sohea_classifier_prompt.format(userPrompt=self.rephrased_query)
-                        sohea_denominator_classifier_response = json.loads(self.invoke_llm(sohea_denominator_classifier_prompt,stage_name='Sohea Donominator Classifier'))
+                        sohea_denominator_classifier_response = json.loads(self.invoke_llm(sohea_denominator_classifier_prompt,stage_name='Sohea Denominator Classifier'))
 
                         if sohea_year_classifier_response['year_scope']=='unknown':
                             latest_year , latest_file = get_latest_sohea_year_file()
@@ -473,6 +469,7 @@ class Main():
                         Must Inform Downstream LLM To use these yearnumber
                         ...
                         'when denominator -- true -- Agent -- JSON -- Mapping '
+                        '''
                         if sohea_denominator_classifier_response['denominator_required']:
                             sohea_mapping_agent_prompt = sohea_json_mapping_agent_prompt.partial(
                                 question = f'Original Question: {self.userPrompt} Rephrased Query: {self.rephrased_query} Datasource {self.dataSource} Years_requested : {sohea_year_classifier_response['years']}',
@@ -500,7 +497,7 @@ class Main():
                                 print(log_str)
                                 logger.info(log_str)
 
-                            log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} recieved output response from heirarchy_mapping_agent."
+                            log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} received output response from heirarchy_mapping_agent."
                             print(log_str)
                             logger.info(log_str)
 
@@ -544,7 +541,7 @@ class Main():
                         print(log_str)
                         logger.info(log_str)
                     
-                    log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} recieved output response from search agent."
+                    log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} received output response from search agent."
                     print(log_str)
                     logger.info(log_str)
 
@@ -613,10 +610,10 @@ class Main():
                             self.total_input_tokens += cb.prompt_tokens
                             self.total_output_tokens += cb.completion_tokens
                             duration_ms = (datetime.now() - start_time_response_agent).total_seconds() * 1000
-                            log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} Response Generater Input Tokens {cb.prompt_tokens} Output Tokens {cb.completion_tokens} TimeTaken: {duration_ms:.2f} ms"
+                            log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} Response Generator Input Tokens {cb.prompt_tokens} Output Tokens {cb.completion_tokens} TimeTaken: {duration_ms:.2f} ms"
                             print(log_str)
                             logger.info(log_str)
-                            log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} Response generated successfuly"
+                            log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} Response generated successfully"
                             print(log_str)
                             logger.info(log_str)
 
@@ -634,7 +631,7 @@ class Main():
             
             structured_response = self.invoke_llm(prompt_input_structured_response_generator,stage_name='Structured response generator')
             structured_response = self.storage_db(structured_response)
-            log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} Structured Response generated successfuly"
+            log_str = f"Session Id {self.sessionId} Datasource {self.dataSource} Structured Response generated successfully"
             print(log_str)
             logger.info(log_str)
             print("Completed")
@@ -660,7 +657,7 @@ class Main():
 
 '''
 Metadata extractor
-''''''
+'''
 
 class Metadata():
     def __init__(self,datasource):
@@ -786,7 +783,7 @@ class Metadata():
                     )
                 except:pass
         
-        if self.dataSource.lower()=='merative':
+        if self.datasource.lower()=='merative':
              self.datasource_description = (
                 "The 'merative' schema houses essential data related to dental and medical services, including patient demographics, provider information, "
                 "treatment details, and financial breakdowns. This schema plays a crucial role in tracking patient encounters, claims processing, and insurance enrollments "
@@ -815,5 +812,3 @@ class Metadata():
             "description":self.datasource_description,
             "tables":self.tables
         }
-                         
-                         
